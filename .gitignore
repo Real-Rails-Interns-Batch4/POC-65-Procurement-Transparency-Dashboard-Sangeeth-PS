@@ -1,0 +1,19 @@
+# Next.js build/dependencies
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.preview.local
+frontend/.env.production.local
+
+# Python virtualenv/caches
+backend/.venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+
+# System and editor files
+.DS_Store
+*.log
+repomix-output.xml
