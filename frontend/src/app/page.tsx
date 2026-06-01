@@ -38,8 +38,8 @@ export default function Home() {
   // Map click drilldown state
   const [selectedStateData, setSelectedStateData] = useState<StateData | null>(null);
 
-  // Toggle to collapse/expand bottom charts stage
-  const [showCharts, setShowCharts] = useState(true);
+  // Toggle to collapse/expand bottom charts stage (default to collapsed/hidden)
+  const [showCharts, setShowCharts] = useState(false);
 
   // Fetch agencies on mount
   useEffect(() => {
@@ -96,16 +96,17 @@ export default function Home() {
         onClearFilters={handleClearFilters}
       />
 
-      {/* Main Split Layout */}
-      <div className="grid grid-cols-[70%_30%] w-full h-[calc(100vh-96px)] overflow-hidden">
-        {/* Left Side: Map + Charts (70%) */}
-        <div className="flex flex-col h-full w-full border-r border-border overflow-hidden relative">
-          {/* Map Section (70% split or 100% full height) */}
-          <div
-            className={`w-full border-b border-border relative transition-all duration-300 ${
-              showCharts ? "h-[70%]" : "h-[100%] border-b-0"
-            }`}
-          >
+      {/* Main Split Layout Container */}
+      <div className="flex flex-col flex-1 w-full h-[calc(100vh-96px)] overflow-hidden relative">
+        
+        {/* Top Section: Map (70% width) & Sidebar (30% width) split */}
+        <div
+          className={`grid grid-cols-[70%_30%] w-full transition-all duration-500 ease-in-out ${
+            showCharts ? "h-[65%] border-b border-border" : "h-[100%]"
+          }`}
+        >
+          {/* Map Stage (70% width of Top Section) */}
+          <div className="w-full h-full border-r border-border relative overflow-hidden bg-bg">
             <MapStage
               agency={selectedAgency}
               category={selectedCategory}
@@ -115,9 +116,9 @@ export default function Home() {
             {/* Toggle Button in bottom-right corner of Map to expand/collapse charts */}
             <button
               onClick={() => setShowCharts(!showCharts)}
-              className="absolute bottom-3 right-3 flex items-center space-x-1.5 border border-border bg-surface px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider text-text-muted hover:text-text-primary hover:border-cyan-custom transition-all z-40 cursor-pointer"
+              className="absolute bottom-3 right-3 flex items-center space-x-1.5 border border-border bg-surface px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider text-text-muted hover:text-text-primary hover:border-cyan-custom transition-all z-40 cursor-pointer shadow-lg"
             >
-              <span>{showCharts ? "Expand Map (Hide Charts)" : "Split View (Show Charts)"}</span>
+              <span>{showCharts ? "Expand Map (Hide Charts)" : "Show Charts"}</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="12"
@@ -128,16 +129,33 @@ export default function Home() {
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={`transform transition-transform ${showCharts ? "" : "rotate-180"}`}
+                className={`transform transition-transform duration-300 ${showCharts ? "" : "rotate-180"}`}
               >
                 <polyline points="18 15 12 9 6 15" />
               </svg>
             </button>
           </div>
 
-          {/* Charts Section (30% split height) */}
+          {/* Sidebar Section (30% width of Top Section) - Fixed/Always Visible */}
+          <div className="w-full h-full overflow-hidden">
+            <Sidebar
+              agency={selectedAgency}
+              category={selectedCategory}
+              state={selectedState}
+              selectedStateData={selectedStateData}
+              onCloseStateDetail={() => setSelectedStateData(null)}
+            />
+          </div>
+        </div>
+
+        {/* Collapsible Bottom Charts Section (100% width) */}
+        <div
+          className={`w-full bg-surface/30 transition-all duration-500 ease-in-out overflow-hidden ${
+            showCharts ? "h-[35%] opacity-100" : "h-0 opacity-0"
+          }`}
+        >
           {showCharts && (
-            <div className="w-full h-[30%] bg-surface/30">
+            <div className="w-full h-full">
               <Charts
                 agency={selectedAgency}
                 category={selectedCategory}
@@ -145,17 +163,6 @@ export default function Home() {
               />
             </div>
           )}
-        </div>
-
-        {/* Right Side: Sidebar Insights (30%) */}
-        <div className="w-full h-full overflow-hidden">
-          <Sidebar
-            agency={selectedAgency}
-            category={selectedCategory}
-            state={selectedState}
-            selectedStateData={selectedStateData}
-            onCloseStateDetail={() => setSelectedStateData(null)}
-          />
         </div>
       </div>
     </div>

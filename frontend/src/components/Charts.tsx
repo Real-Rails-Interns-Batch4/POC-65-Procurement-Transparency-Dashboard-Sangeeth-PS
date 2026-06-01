@@ -237,7 +237,7 @@ export default function Charts({ agency, category, state }: ChartsProps) {
 
   if (isLoading) {
     return (
-      <div className="flex h-full w-full flex-col space-y-4 p-4">
+      <div className="flex h-full w-full flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 p-4">
         <div className="flex-1 bg-surface border border-border rounded-md animate-pulse p-4 space-y-3">
           <div className="h-3 w-32 bg-border rounded" />
           <div className="h-6 w-full bg-border rounded" />
@@ -264,9 +264,9 @@ export default function Charts({ agency, category, state }: ChartsProps) {
   }
 
   return (
-    <div className="flex h-full w-full flex-col space-y-3 p-3 overflow-hidden">
+    <div className="flex h-full w-full flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 p-3 overflow-hidden">
       {/* Chart 1 */}
-      <div className="flex-1 min-h-0 border border-border bg-surface p-2.5 rounded-md flex flex-col">
+      <div className="flex-1 min-h-0 border border-border bg-surface p-2.5 rounded-md flex flex-col h-full">
         <span className="text-[10px] uppercase font-semibold tracking-wider text-text-muted">
           Obligations by Category
         </span>
@@ -286,7 +286,7 @@ export default function Charts({ agency, category, state }: ChartsProps) {
       </div>
 
       {/* Chart 2 */}
-      <div className="flex-1 min-h-0 border border-border bg-surface p-2.5 rounded-md flex flex-col">
+      <div className="flex-1 min-w-0 border border-border bg-surface p-2.5 rounded-md flex flex-col h-full">
         <span className="text-[10px] uppercase font-semibold tracking-wider text-text-muted">
           Top Vendor Allocations
         </span>
