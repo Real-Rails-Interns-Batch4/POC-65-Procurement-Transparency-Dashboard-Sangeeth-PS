@@ -129,7 +129,7 @@ export default function Home() {
                 strokeWidth="2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={`transform transition-transform duration-300 ${showCharts ? "" : "rotate-180"}`}
+                className={`transform transition-transform duration-300 ${showCharts ? "rotate-180" : ""}`}
               >
                 <polyline points="18 15 12 9 6 15" />
               </svg>
@@ -151,18 +151,16 @@ export default function Home() {
         {/* Collapsible Bottom Charts Section (100% width) */}
         <div
           className={`w-full bg-surface/30 transition-all duration-500 ease-in-out overflow-hidden ${
-            showCharts ? "h-[35%] opacity-100" : "h-0 opacity-0"
+            showCharts ? "h-[35%] opacity-100 border-t border-border" : "h-0 opacity-0 border-t-0"
           }`}
         >
-          {showCharts && (
-            <div className="w-full h-full">
-              <Charts
-                agency={selectedAgency}
-                category={selectedCategory}
-                state={selectedState}
-              />
-            </div>
-          )}
+          <div className="w-full h-full">
+            <Charts
+              agency={selectedAgency}
+              category={selectedCategory}
+              state={selectedState}
+            />
+          </div>
         </div>
       </div>
     </div>
