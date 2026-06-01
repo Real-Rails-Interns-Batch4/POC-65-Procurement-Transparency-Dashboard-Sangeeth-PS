@@ -37,7 +37,7 @@ function interpolateColor(val: number, min: number, max: number) {
 export default function MapStage({ agency, category, onStateClick }: MapStageProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
+  const statesDataRef = useRef<StateData[]>([]);
 
   const [statesData, setStatesData] = useState<StateData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -114,19 +114,21 @@ export default function MapStage({ agency, category, onStateClick }: MapStagePro
     };
   }, [agency, category]);
 
-  // Update Markers on Map
+  // Update Markers and GeoJSON Layer on Map
   useEffect(() => {
     if (!map.current || statesData.length === 0) {
-      // Clear existing markers if no data
-      markersRef.current.forEach((marker) => marker.remove());
-      markersRef.current = [];
+      // Clear existing layers and source if no data
+      if (map.current && map.current.getLayer("states-points")) {
+        map.current.removeLayer("states-points");
+      }
+      if (map.current && map.current.getSource("states-source")) {
+        map.current.removeSource("states-source");
+      }
       setTooltip(null);
       return;
     }
 
-    // Clear old markers
-    markersRef.current.forEach((marker) => marker.remove());
-    markersRef.current = [];
+    statesDataRef.current = statesData;
 
     // Filter out states with invalid coordinates
     const validStates = statesData.filter(
@@ -146,10 +148,8 @@ export default function MapStage({ agency, category, onStateClick }: MapStagePro
       notation: "compact",
     });
 
-    validStates.forEach((state) => {
-      if (state.lat === null || state.lng === null) return;
-
-      // Scale marker size: min 6px, max 24px radius (width/height 12px to 48px)
+    // Create GeoJSON FeatureCollection
+    const features = validStates.map((state) => {
       const minRadius = 6;
       const maxRadius = 24;
       let radius = minRadius;
@@ -162,59 +162,124 @@ export default function MapStage({ agency, category, onStateClick }: MapStagePro
       const size = radius * 2;
       const color = interpolateColor(state.amount, minAmount, maxAmount);
 
-      // Create custom DOM element for marker
-      const el = document.createElement("div");
-      el.className = "group relative cursor-pointer rounded-full border border-border flex items-center justify-center transition-transform hover:scale-110";
-      el.style.width = `${size}px`;
-      el.style.height = `${size}px`;
-      el.style.backgroundColor = color.replace("rgb", "rgba").replace(")", ", 0.55)");
-      el.style.borderColor = color;
+      return {
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [state.lng!, state.lat!],
+        },
+        properties: {
+          state_code: state.state_code,
+          state_name: state.state_name,
+          amount: state.amount,
+          amount_formatted: formatter.format(state.amount),
+          per_capita: state.per_capita,
+          per_capita_formatted: `$${Math.round(state.per_capita)}`,
+          size,
+          color,
+        },
+      };
+    });
 
-      // Click Event
-      el.addEventListener("click", () => {
-        onStateClick(state);
-      });
+    const geojson: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+      type: "FeatureCollection",
+      features,
+    };
 
-      // Hover and move events to update React tooltip state singly
-      el.addEventListener("mousemove", (e) => {
-        if (!mapContainer.current) return;
-        const rect = mapContainer.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+    // Remove old layers and sources
+    if (map.current.getLayer("states-points")) {
+      map.current.removeLayer("states-points");
+    }
+    if (map.current.getSource("states-source")) {
+      map.current.removeSource("states-source");
+    }
 
-        setTooltip({
-          x,
-          y,
-          state_name: state.state_name || state.state_code,
-          amount: formatter.format(state.amount),
-          per_capita: `Per capita: $${Math.round(state.per_capita)}`,
-        });
+    // Add GeoJSON source
+    map.current.addSource("states-source", {
+      type: "geojson",
+      data: geojson,
+    });
 
-        if (map.current) {
-          map.current.getCanvas().style.cursor = "pointer";
-        }
-      });
+    // Determine insertion position cleanly without assumptions to prevent styles crash
+    const beforeId = map.current.getLayer("poi") ? "poi" : undefined;
 
-      el.addEventListener("mouseleave", () => {
+    // Add circle layer (visual markers)
+    map.current.addLayer(
+      {
+        id: "states-points",
+        type: "circle",
+        source: "states-source",
+        paint: {
+          "circle-radius": ["get", "size"],
+          "circle-color": ["get", "color"],
+          "circle-opacity": 0.55,
+          "circle-stroke-color": ["get", "color"],
+          "circle-stroke-width": 1,
+        },
+      },
+      beforeId
+    );
+
+    // Use map.on('mousemove') on the layer (not mouseenter)
+    const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
+      const features = map.current?.queryRenderedFeatures(e.point, { layers: ["states-points"] });
+      if (!features || features.length === 0) {
         setTooltip(null);
         if (map.current) {
           map.current.getCanvas().style.cursor = "";
         }
+        return;
+      }
+
+      const feature = features[0];
+      const props = feature.properties;
+
+      setTooltip({
+        x: e.point.x,
+        y: e.point.y,
+        state_name: props?.state_name || props?.state_code || "",
+        amount: props?.amount_formatted || "",
+        per_capita: `Per capita: ${props?.per_capita_formatted || ""}`,
       });
 
-      // Add to map
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([state.lng, state.lat])
-        .addTo(map.current!);
+      if (map.current) {
+        map.current.getCanvas().style.cursor = "pointer";
+      }
+    };
 
-      markersRef.current.push(marker);
-    });
-
-    // Cleanup function to clear markers and tooltip on unmount or statesData change
-    return () => {
-      markersRef.current.forEach((marker) => marker.remove());
-      markersRef.current = [];
+    const handleMouseLeave = () => {
       setTooltip(null);
+      if (map.current) {
+        map.current.getCanvas().style.cursor = "";
+      }
+    };
+
+    const handleClick = (e: maplibregl.MapMouseEvent) => {
+      const features = map.current?.queryRenderedFeatures(e.point, { layers: ["states-points"] });
+      if (!features || features.length === 0) return;
+
+      const feature = features[0];
+      const props = feature.properties;
+      const stateCode = props?.state_code;
+
+      const clickedState = statesDataRef.current.find((s) => s.state_code === stateCode);
+      if (clickedState) {
+        onStateClick(clickedState);
+      }
+    };
+
+    // Attach event listeners to the layer
+    map.current.on("mousemove", "states-points", handleMouseMove);
+    map.current.on("mouseleave", "states-points", handleMouseLeave);
+    map.current.on("click", "states-points", handleClick);
+
+    // Cleanup function to remove event listeners
+    return () => {
+      if (map.current) {
+        map.current.off("mousemove", "states-points", handleMouseMove);
+        map.current.off("mouseleave", "states-points", handleMouseLeave);
+        map.current.off("click", "states-points", handleClick);
+      }
     };
   }, [statesData, onStateClick]);
 
