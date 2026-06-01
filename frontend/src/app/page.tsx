@@ -1,65 +1,132 @@
-import Image from "next/image";
+"use test";
+"use client";
+
+import React, { useEffect, useState } from "react";
+import Topbar from "@/components/Topbar";
+import FilterBar from "@/components/FilterBar";
+import MapStage from "@/components/MapStage";
+import Charts from "@/components/Charts";
+import Sidebar from "@/components/Sidebar";
+
+interface Agency {
+  id: number;
+  code: string | null;
+  name: string;
+  abbreviation: string | null;
+}
+
+interface StateData {
+  state_code: string;
+  state_name: string;
+  amount: number;
+  population: number;
+  per_capita: number;
+  lat: number | null;
+  lng: number | null;
+}
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export default function Home() {
+  const [agencies, setAgencies] = useState<Agency[]>([]);
+  
+  // Active Filter states
+  const [selectedAgency, setSelectedAgency] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedState, setSelectedState] = useState<string>("");
+
+  // Map click drilldown state
+  const [selectedStateData, setSelectedStateData] = useState<StateData | null>(null);
+
+  // Fetch agencies on mount
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchAgencies = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/agencies`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error("Failed to fetch agencies");
+        const data = await res.json();
+        setAgencies(data.results || []);
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.error("Error fetching agencies:", err);
+        }
+      }
+    };
+
+    fetchAgencies();
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  const handleClearFilters = () => {
+    setSelectedAgency("");
+    setSelectedCategory("");
+    setSelectedState("");
+    setSelectedStateData(null);
+  };
+
+  const handleStateClick = (stateData: StateData) => {
+    setSelectedStateData(stateData);
+    setSelectedState(stateData.state_code);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-bg text-text-primary">
+      {/* Top Header */}
+      <Topbar />
+
+      {/* Filter Row */}
+      <FilterBar
+        agencies={agencies}
+        selectedAgency={selectedAgency}
+        selectedCategory={selectedCategory}
+        selectedState={selectedState}
+        onAgencyChange={setSelectedAgency}
+        onCategoryChange={setSelectedCategory}
+        onStateChange={setSelectedState}
+        onClearFilters={handleClearFilters}
+      />
+
+      {/* Main Split Layout */}
+      <div className="flex flex-1 w-full h-[calc(100vh-96px)] overflow-hidden">
+        {/* Left Side: Map + Charts (70%) */}
+        <div className="flex flex-col h-full w-[70%] border-r border-border">
+          {/* Map Section (60%) */}
+          <div className="w-full h-[60%] border-b border-border relative">
+            <MapStage
+              agency={selectedAgency}
+              category={selectedCategory}
+              onStateClick={handleStateClick}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+
+          {/* Charts Section (40%) */}
+          <div className="w-full h-[40%] bg-surface/30">
+            <Charts
+              agency={selectedAgency}
+              category={selectedCategory}
+              state={selectedState}
+            />
+          </div>
         </div>
-      </main>
+
+        {/* Right Side: Sidebar Insights (30%) */}
+        <div className="w-[30%] h-full">
+          <Sidebar
+            agency={selectedAgency}
+            category={selectedCategory}
+            state={selectedState}
+            selectedStateData={selectedStateData}
+            onCloseStateDetail={() => setSelectedStateData(null)}
+          />
+        </div>
+      </div>
     </div>
   );
 }
