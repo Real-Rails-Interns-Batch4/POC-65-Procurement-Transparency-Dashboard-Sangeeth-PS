@@ -38,6 +38,9 @@ export default function Home() {
   // Map click drilldown state
   const [selectedStateData, setSelectedStateData] = useState<StateData | null>(null);
 
+  // Toggle to collapse/expand bottom charts stage
+  const [showCharts, setShowCharts] = useState(true);
+
   // Fetch agencies on mount
   useEffect(() => {
     const controller = new AbortController();
@@ -96,24 +99,52 @@ export default function Home() {
       {/* Main Split Layout */}
       <div className="grid grid-cols-[70%_30%] w-full h-[calc(100vh-96px)] overflow-hidden">
         {/* Left Side: Map + Charts (70%) */}
-        <div className="flex flex-col h-full w-full border-r border-border overflow-hidden">
-          {/* Map Section (60%) */}
-          <div className="w-full h-[60%] border-b border-border relative">
+        <div className="flex flex-col h-full w-full border-r border-border overflow-hidden relative">
+          {/* Map Section (70% split or 100% full height) */}
+          <div
+            className={`w-full border-b border-border relative transition-all duration-300 ${
+              showCharts ? "h-[70%]" : "h-[100%] border-b-0"
+            }`}
+          >
             <MapStage
               agency={selectedAgency}
               category={selectedCategory}
               onStateClick={handleStateClick}
             />
+
+            {/* Toggle Button in bottom-right corner of Map to expand/collapse charts */}
+            <button
+              onClick={() => setShowCharts(!showCharts)}
+              className="absolute bottom-3 right-3 flex items-center space-x-1.5 border border-border bg-surface px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider text-text-muted hover:text-text-primary hover:border-cyan-custom transition-all z-40 cursor-pointer"
+            >
+              <span>{showCharts ? "Expand Map (Hide Charts)" : "Split View (Show Charts)"}</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={`transform transition-transform ${showCharts ? "" : "rotate-180"}`}
+              >
+                <polyline points="18 15 12 9 6 15" />
+              </svg>
+            </button>
           </div>
 
-          {/* Charts Section (40%) */}
-          <div className="w-full h-[40%] bg-surface/30">
-            <Charts
-              agency={selectedAgency}
-              category={selectedCategory}
-              state={selectedState}
-            />
-          </div>
+          {/* Charts Section (30% split height) */}
+          {showCharts && (
+            <div className="w-full h-[30%] bg-surface/30">
+              <Charts
+                agency={selectedAgency}
+                category={selectedCategory}
+                state={selectedState}
+              />
+            </div>
+          )}
         </div>
 
         {/* Right Side: Sidebar Insights (30%) */}
