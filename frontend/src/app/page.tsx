@@ -94,9 +94,9 @@ export default function Home() {
       />
 
       {/* Main Split Layout */}
-      <div className="flex flex-1 w-full h-[calc(100vh-96px)] overflow-hidden">
+      <div className="grid grid-cols-[70%_30%] w-full h-[calc(100vh-96px)] overflow-hidden">
         {/* Left Side: Map + Charts (70%) */}
-        <div className="flex flex-col h-full w-[70%] border-r border-border">
+        <div className="flex flex-col h-full w-full border-r border-border overflow-hidden">
           {/* Map Section (60%) */}
           <div className="w-full h-[60%] border-b border-border relative">
             <MapStage
@@ -117,7 +117,7 @@ export default function Home() {
         </div>
 
         {/* Right Side: Sidebar Insights (30%) */}
-        <div className="w-[30%] h-full">
+        <div className="w-full h-full overflow-hidden">
           <Sidebar
             agency={selectedAgency}
             category={selectedCategory}
