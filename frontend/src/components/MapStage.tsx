@@ -42,6 +42,7 @@ export default function MapStage({ agency, category, onStateClick }: MapStagePro
   const [statesData, setStatesData] = useState<StateData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
   const [tooltip, setTooltip] = useState<{
     x: number;
     y: number;
@@ -54,7 +55,7 @@ export default function MapStage({ agency, category, onStateClick }: MapStagePro
   useEffect(() => {
     if (map.current || !mapContainer.current) return;
 
-    map.current = new maplibregl.Map({
+    const mapInstance = new maplibregl.Map({
       container: mapContainer.current,
       style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
       center: [-98.5795, 39.8283], // Geometric center of the US
@@ -64,12 +65,18 @@ export default function MapStage({ agency, category, onStateClick }: MapStagePro
       attributionControl: false,
     });
 
-    map.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+    mapInstance.on("load", () => {
+      setIsMapReady(true);
+    });
+
+    mapInstance.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+    map.current = mapInstance;
 
     return () => {
       if (map.current) {
         map.current.remove();
         map.current = null;
+        setIsMapReady(false);
       }
     };
   }, []);
@@ -116,13 +123,15 @@ export default function MapStage({ agency, category, onStateClick }: MapStagePro
 
   // Update Markers and GeoJSON Layer on Map
   useEffect(() => {
-    if (!map.current || statesData.length === 0) {
-      // Clear existing layers and source if no data
-      if (map.current && map.current.getLayer("states-points")) {
-        map.current.removeLayer("states-points");
-      }
-      if (map.current && map.current.getSource("states-source")) {
-        map.current.removeSource("states-source");
+    if (!map.current || !isMapReady || statesData.length === 0) {
+      // Clear existing layers and source if no data (but only if map style is ready to prevent crashes)
+      if (map.current && isMapReady) {
+        if (map.current.getLayer("states-points")) {
+          map.current.removeLayer("states-points");
+        }
+        if (map.current.getSource("states-source")) {
+          map.current.removeSource("states-source");
+        }
       }
       setTooltip(null);
       return;
@@ -281,7 +290,7 @@ export default function MapStage({ agency, category, onStateClick }: MapStagePro
         map.current.off("click", "states-points", handleClick);
       }
     };
-  }, [statesData, onStateClick]);
+  }, [statesData, isMapReady, onStateClick]);
 
   return (
     <div className="relative w-full h-full bg-bg">
