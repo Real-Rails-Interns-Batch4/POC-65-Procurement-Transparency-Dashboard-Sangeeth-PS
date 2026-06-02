@@ -341,6 +341,9 @@ export default function Sidebar({
           <div className="text-[10px] font-bold uppercase tracking-wider text-text-muted border-b border-border/50 pb-1">
             Who Controls the Rail
           </div>
+          <p className="text-[10px] text-text-muted leading-relaxed">
+            This metric provides a high-fidelity **vendor ranking** displaying lead contractors sorted by total active obligations and cumulative award counts inside the selected visual parameters.
+          </p>
           {isVendorsLoading ? (
             <div className="space-y-2 animate-pulse">
               <div className="h-6 w-full bg-bg/50 rounded" />

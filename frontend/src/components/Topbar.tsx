@@ -99,7 +99,7 @@ export default function Topbar() {
               <div className="flex flex-col space-y-1">
                 <span className="text-text-muted">Stack</span>
                 <span className="font-medium text-cyan-custom leading-relaxed">
-                  Next.js &middot; FastAPI &middot; MapLibre &middot; TanStack Table
+                  Next.js &middot; FastAPI &middot; MapLibre &middot; ECharts &middot; TanStack Table
                 </span>
               </div>
             </div>

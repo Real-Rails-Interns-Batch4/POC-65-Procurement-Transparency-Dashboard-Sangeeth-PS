@@ -63,3 +63,12 @@ The workspace follows a strict vertical layout divided by two standard sub-heade
   * `/api/vendors`: Summarizes contract amounts and award counts for the top 20 vendors.
   * `/api/awards`: Delivers paginated individual awards sorted descending by obligation totals.
   * `/api/awards/csv`: Direct streaming download handler outputting dynamic CSV spreadsheets.
+
+---
+
+## 📈 5. Visual Obligations & Vendor Allocation ECharts (`Charts.tsx`)
+
+* **Popup Modal Overlay**: Integrates a centered popup modal overlay box triggered by a "Show Charts" button to present ECharts visual spending category distributions and top vendor allocation horizontal charts with no layout shifts or reflows.
+* **Obligations by Category**: Visualizes the aggregate federal award obligations by category (Contracts, Grants, Loans, IDVs, Other) with distinct Cyan `#38BDF8` bar fills.
+* **Top Vendor Allocations**: Displays top 5 vendor allocations formatted dynamically using compact currency values, with distinct Indigo `#818CF8` bar fills.
+

@@ -17,6 +17,7 @@ This **UAT Checklist** documents all verified user flows, interface interactions
 | **TanStack Highlighting** | View the **Who Controls the Rail** table in the sidebar. | List displays top 10 vendor obligations. The lead vendor is styled with a distinct background fill and cyan indicator border. | **PASS** |
 | **CSV Download** | Click the `Download Sample Data` button at the bottom of the sidebar. | Browser downloads a formatted `.csv` spreadsheet matching all currently selected filter values. | **PASS** |
 | **System Info Modal** | Click the info icon in the Topbar. | Centered modal panel opens cleanly, listing Sangeeth PS as Architect, Real Rails Batch 4, and the technology stack. | **PASS** |
+| **Visual Obligations Modal** | Click the 'Show Charts' button in the bottom-right corner of the Map Stage. | Centered modal panel opens cleanly with a backdrop blur overlay. Obligations by Category and Top Vendor Allocations load live aggregated obligations and render in vertical horizontal ECharts bars. | **PASS** |
 
 ---
 
