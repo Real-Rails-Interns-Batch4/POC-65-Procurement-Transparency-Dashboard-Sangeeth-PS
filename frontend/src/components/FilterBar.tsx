@@ -1,4 +1,3 @@
-"use test";
 "use client";
 
 import React from "react";
