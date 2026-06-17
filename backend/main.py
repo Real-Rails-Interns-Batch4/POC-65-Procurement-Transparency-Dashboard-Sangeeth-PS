@@ -6,18 +6,34 @@ Proxies requests to the USAspending.gov public API (v2) and adds:
   • Unified error handling with fallback empty responses
   • CSV export for award data
 """
-
 from __future__ import annotations
 
 import csv
 import io
+import json
 import time
+import os
+from datetime import datetime, timedelta
 from typing import Any, Optional
+from dotenv import load_dotenv
 
 import httpx
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+
+# Load environment variables
+load_dotenv()
+
+SAM_API_KEY = os.getenv("SAM_API_KEY", "")
+USASPENDING_API_KEY = os.getenv("USASPENDING_API_KEY", "")
+
+def is_valid_api_key(key: str | None) -> bool:
+    if not key:
+        return False
+    key_upper = key.strip().upper()
+    return "YOUR_" not in key_upper and "PLACEHOLDER" not in key_upper and len(key.strip()) > 5
+
 
 # ---------------------------------------------------------------------------
 # App
@@ -178,7 +194,10 @@ async def _post(path: str, payload: dict) -> dict:
     """POST to USAspending API and return parsed JSON."""
     client = await _get_client()
     url = f"{USA_SPENDING_BASE}{path}"
-    resp = await client.post(url, json=payload)
+    headers = {}
+    if is_valid_api_key(USASPENDING_API_KEY):
+        headers["X-API-KEY"] = USASPENDING_API_KEY
+    resp = await client.post(url, json=payload, headers=headers)
     resp.raise_for_status()
     return resp.json()
 
@@ -187,9 +206,13 @@ async def _get(path: str, params: dict | None = None) -> Any:
     """GET from USAspending API and return parsed JSON."""
     client = await _get_client()
     url = f"{USA_SPENDING_BASE}{path}"
-    resp = await client.get(url, params=params)
+    headers = {}
+    if is_valid_api_key(USASPENDING_API_KEY):
+        headers["X-API-KEY"] = USASPENDING_API_KEY
+    resp = await client.get(url, params=params, headers=headers)
     resp.raise_for_status()
     return resp.json()
+
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +254,64 @@ def _build_filters(
     return filters
 
 
+# Path to mock opportunities JSON (relative to project root)
+_MOCK_OPPS_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data", "mock_opportunities.json"
+)
+
+
+def _generate_simulated_opportunities(agency: str | None = None, state: str | None = None) -> list[dict]:
+    # Load templates from external JSON file
+    with open(_MOCK_OPPS_PATH, "r") as f:
+        templates = json.load(f)
+
+    import random
+    # Seed with parameters to keep pages consistent for a given query
+    seed_str = f"{agency or ''}:{state or ''}"
+    val = sum(ord(c) for c in seed_str) if seed_str else 42
+    rnd = random.Random(val)
+
+    state_list = [state] if state else ["CA", "TX", "VA", "FL", "DC", "NY", "IL", "GA"]
+    
+    results = []
+    for i in range(1, 26):
+        if agency:
+            matching = [t for t in templates if any(agency.lower() in a.lower() for a in t["agencies"])]
+            tpl = rnd.choice(matching) if matching else rnd.choice(templates)
+        else:
+            tpl = rnd.choice(templates)
+        
+        pop_state = rnd.choice(state_list)
+        
+        today = datetime(2026, 6, 17)
+        posted_days_ago = rnd.randint(1, 30)
+        posted_date = today - timedelta(days=posted_days_ago)
+        
+        deadline_days_future = rnd.randint(10, 45)
+        deadline_date = today + timedelta(days=deadline_days_future)
+        
+        dept = agency if agency else rnd.choice(tpl["agencies"])
+        
+        notice_id = f"sim-{pop_state.lower()}-{100000 + rnd.randint(1000, 99999)}"
+        sol_num = f"SOL-{pop_state}-{posted_date.year}-{1000 + i}"
+        
+        results.append({
+            "notice_id": notice_id,
+            "title": tpl["title"],
+            "solicitation_number": sol_num,
+            "notice_type": tpl["notice_type"],
+            "posted_date": posted_date.strftime("%Y-%m-%d"),
+            "response_deadline": deadline_date.strftime("%Y-%m-%d"),
+            "department": dept,
+            "state": pop_state,
+            "ui_url": f"https://sam.gov/opp/{notice_id}/view"
+        })
+
+    results.sort(key=lambda x: x["posted_date"], reverse=True)
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -238,6 +319,131 @@ def _build_filters(
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/api/opportunities")
+async def get_opportunities(
+    agency: Optional[str] = Query(None, description="Awarding agency or organization name"),
+    state: Optional[str] = Query(None, description="Two-letter state code"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(10, ge=1, le=100, description="Results per page"),
+):
+    """
+    Return recent federal procurement opportunities from SAM.gov.
+    If no API key is set, returns simulated high-fidelity opportunities.
+    """
+    # Resolve FastAPI Query objects if called directly in Python (e.g. testing/debugging)
+    from fastapi.params import Query as FastAPIQuery
+    if isinstance(agency, FastAPIQuery):
+        agency = None
+    if isinstance(state, FastAPIQuery):
+        state = None
+    if isinstance(page, FastAPIQuery):
+        page = 1
+    if isinstance(limit, FastAPIQuery):
+        limit = 10
+
+    cache_key = f"opps:{agency}:{state}:{page}:{limit}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    # Check if we should use live SAM.gov API
+    use_live = is_valid_api_key(SAM_API_KEY)
+
+    if use_live:
+        try:
+            client = await _get_client()
+            today = datetime.utcnow()
+            posted_to = today.strftime("%m/%d/%Y")
+            posted_from = (today - timedelta(days=360)).strftime("%m/%d/%Y")
+
+            params = {
+                "api_key": SAM_API_KEY,
+                "postedFrom": posted_from,
+                "postedTo": posted_to,
+                "limit": limit,
+                "offset": (page - 1) * limit,
+            }
+
+            if state:
+                params["state"] = state
+
+            if agency:
+                params["organizationName"] = agency
+
+            resp = await client.get("https://api.sam.gov/opportunities/v2/search", params=params)
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                opps_list = data.get("opportunitiesData", [])
+                
+                results = []
+                for opp in opps_list:
+                    notice_id = opp.get("noticeId", "")
+                    title = opp.get("title", "")
+                    sol_num = opp.get("solicitationNumber", "N/A")
+                    notice_type = opp.get("type") or opp.get("baseType") or "Notice"
+                    posted_date = opp.get("postedDate", "")
+                    deadline = opp.get("responseDeadLine") or opp.get("archiveDate") or "N/A"
+                    # Extract just the date portion if it includes time
+                    if deadline and "T" in deadline:
+                        deadline = deadline.split("T")[0]
+                    
+                    # Department from fullParentPathName (e.g. "DEPT OF DEFENSE.DEPT OF THE ARMY...")
+                    dept = opp.get("fullParentPathName", "").split(".")[0] if opp.get("fullParentPathName") else "Federal Agency"
+                    
+                    pop_state = ""
+                    pop = opp.get("placeOfPerformance") or {}
+                    if isinstance(pop, dict):
+                        state_info = pop.get("state", {})
+                        if isinstance(state_info, dict):
+                            pop_state = state_info.get("code", "")
+                        elif isinstance(state_info, str):
+                            pop_state = state_info
+                    
+                    results.append({
+                        "notice_id": notice_id,
+                        "title": title,
+                        "solicitation_number": sol_num,
+                        "notice_type": notice_type,
+                        "posted_date": posted_date,
+                        "response_deadline": deadline,
+                        "department": dept,
+                        "state": pop_state or state or "USA",
+                        "ui_url": f"https://sam.gov/opp/{notice_id}/view" if notice_id else "https://sam.gov"
+                    })
+                
+                response = {
+                    "results": results,
+                    "total": data.get("totalRecords", len(results)),
+                    "page": page,
+                    "limit": limit,
+                    "is_simulated": False
+                }
+                _cache_set(cache_key, response)
+                return response
+            else:
+                print(f"SAM.gov API returned status {resp.status_code}: {resp.text}")
+        except Exception as e:
+            print(f"SAM.gov API request failed: {e}")
+
+    # Fallback / Simulated Data
+    simulated_opps = _generate_simulated_opportunities(agency, state)
+    
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated = simulated_opps[start_idx:end_idx]
+    
+    response = {
+        "results": paginated,
+        "total": len(simulated_opps),
+        "page": page,
+        "limit": limit,
+        "is_simulated": True
+    }
+    _cache_set(cache_key, response)
+    return response
 
 
 # ── 1. Awards ──────────────────────────────────────────────────────────────
